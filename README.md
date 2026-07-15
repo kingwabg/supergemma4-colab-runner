@@ -65,7 +65,7 @@ Colab T4에서 측정한 단계별 결과와 남은 약점은 [docs/evaluation-r
 
 ### Codex형 미니 저장소 50문항 평가
 
-평가셋은 [evals/codex_like_eval_50.json](evals/codex_like_eval_50.json), 실행기는 [supergemma_agent/codex_eval.py](supergemma_agent/codex_eval.py)에 있습니다. 설계와 점수 해석은 [docs/codex-like-eval.md](docs/codex-like-eval.md)를 참고하세요.
+평가셋은 [evals/codex_like_eval_50.json](evals/codex_like_eval_50.json), 실행기는 [supergemma_agent/codex_eval.py](supergemma_agent/codex_eval.py)에 있습니다. 설계와 점수 해석은 [docs/codex-like-eval.md](docs/codex-like-eval.md), Gemma 4 12B 실측은 [docs/codex-like-evaluation-results-2026-07-16.md](docs/codex-like-evaluation-results-2026-07-16.md)를 참고하세요.
 
 ```python
 RUN_CODEX_EVAL = True
