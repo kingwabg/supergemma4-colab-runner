@@ -18,6 +18,7 @@ REQUIRED_MARKERS = (
     "answer_with_rag",
     "run_spec_agent",
     "real_work_eval_75.json",
+    "agentic_behavior_eval_20.json",
     'quality_mode = str(payload.get("quality_mode", "direct"))',
     '/v1/rag/query',
     '/v1/spec/run',
@@ -30,6 +31,7 @@ DEFAULT_OFF_FLAGS = (
     "RUN_RAG",
     "RUN_SPEC_AGENT",
     "RUN_MODEL_EVAL",
+    "RUN_AGENTIC_EVAL",
     "RUN_API_SERVER",
     "OPEN_EXTERNAL_TUNNEL",
 )

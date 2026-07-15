@@ -223,6 +223,14 @@ class NotebookTests(unittest.TestCase):
         self.assertNotIn("answer_with_validation", source)
         self.assertNotIn("call_upstream", source)
 
+    def test_agentic_eval_cell_uses_three_layer_runner_and_safe_defaults(self):
+        source = notebook_cell_source("RUN_AGENTIC_EVAL")
+        self.assertIn("AGENTIC_EVAL_LIMIT = 2", source)
+        self.assertIn("run_agentic_evaluation", source)
+        self.assertIn("agentic_judge", source)
+        self.assertIn("file_check_rate", source)
+        self.assertNotIn("call_upstream", source)
+
     def test_hybrid_fallback_is_not_called_after_local_pass(self):
         namespace = {
             "BASE_SYSTEM_PROMPT": "base",
