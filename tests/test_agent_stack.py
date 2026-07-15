@@ -215,6 +215,14 @@ class NotebookTests(unittest.TestCase):
         self.assertGreaterEqual(result["cells"], 30)
         self.assertGreaterEqual(result["markers"], 9)
 
+    def test_codex_eval_cell_is_direct_and_bounded(self):
+        source = notebook_cell_source("RUN_CODEX_EVAL")
+        self.assertIn("CODEX_EVAL_LIMIT = 5", source)
+        self.assertIn("run_codex_evaluation", source)
+        self.assertIn("call_local_chat", source)
+        self.assertNotIn("answer_with_validation", source)
+        self.assertNotIn("call_upstream", source)
+
     def test_hybrid_fallback_is_not_called_after_local_pass(self):
         namespace = {
             "BASE_SYSTEM_PROMPT": "base",

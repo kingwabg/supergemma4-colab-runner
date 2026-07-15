@@ -1,6 +1,6 @@
 # SuperGemma T4 Agent Runner
 
-Google Colab에서 로컬 GGUF 모델을 실행하고 RAG, 답변 검증, 자동 재시도, 선택적 강한 API 폴백, Spec Kit 방식 업무 설계, 75문항 평가, OpenAI 호환 API까지 사용하는 공개 실행용 노트북입니다.
+Google Colab에서 로컬 GGUF 모델을 실행하고 RAG, 답변 검증, 자동 재시도, 선택적 강한 API 폴백, Spec Kit 방식 업무 설계, 75문항 회귀 평가, Codex형 미니 저장소 50문항 평가, OpenAI 호환 API까지 사용하는 공개 실행용 노트북입니다.
 
 무료 Colab T4에서 계속 쓸 목적이면 26B 4-bit MLX 모델보다 T4에 맞춘 GGUF 모델이 현실적입니다. 기본 추천 노트북은 Google 공식 `Gemma 4 12B QAT Q4_0`을 실행하고, 필요하면 `Qwen3.5 9B` 또는 더 가벼운 `Qwen2.5 7B`로 바꿀 수 있는 T4용 Pro 노트북입니다.
 
@@ -8,7 +8,7 @@ Google Colab에서 로컬 GGUF 모델을 실행하고 RAG, 답변 검증, 자동
 
 ## 노트북
 
-- [T4 GGUF Pro Agent: Gemma 4 · Spec · RAG · 75 Eval · API](https://colab.research.google.com/github/kingwabg/supergemma4-colab-runner/blob/main/notebooks/T4_GGUF_Qwen2_5_7B_Colab.ipynb)
+- [T4 GGUF Pro Agent: Gemma 4 · RAG · Spec · Codex형 평가 · API](https://colab.research.google.com/github/kingwabg/supergemma4-colab-runner/blob/main/notebooks/T4_GGUF_Qwen2_5_7B_Colab.ipynb)
 - [SuperGemma4 26B MLX CUDA 실행](https://colab.research.google.com/github/kingwabg/supergemma4-colab-runner/blob/main/notebooks/SuperGemma4_Colab_MLX_CUDA.ipynb)
 - [OpenAI API Codex-style 채팅](https://colab.research.google.com/github/kingwabg/supergemma4-colab-runner/blob/main/notebooks/OpenAI_API_Codex_Style_Colab.ipynb)
 
@@ -22,7 +22,7 @@ T4 GGUF Pro 노트북:
 4. 비교하려면 `qwen3_5_9b`, 안정성을 우선하면 `qwen2_5_7b`, 가장 가볍게 쓰려면 `ultra_light`로 바꾸고 모델 선택 셀부터 다시 실행합니다.
 5. `정상동작 답변: 서울`이 나오면 준비 완료입니다.
 6. 원하는 질문은 `QUESTION = "..."` 값을 바꾼 뒤 `한 번 질문하기` 셀만 다시 실행합니다.
-7. 답변 검증, 연속 채팅, 문서 RAG, Spec 업무 설계, 75문항 평가, API 서버는 모두 기본 OFF입니다. 필요한 기능의 `RUN_... = True`만 켜고 해당 셀만 실행합니다.
+7. 답변 검증, 연속 채팅, 문서 RAG, Spec 업무 설계, 75문항 평가, Codex형 평가, API 서버는 모두 기본 OFF입니다. 필요한 기능의 `RUN_... = True`만 켜고 해당 셀만 실행합니다.
 8. 컨텍스트는 T4 안정성을 위해 4,096이 기본입니다. 정상 실행 후에만 `CONTEXT_OVERRIDE = 8192`를 시험하세요.
 
 ### 선택 기능
@@ -33,6 +33,7 @@ T4 GGUF Pro 노트북:
 - 문서 RAG: `RUN_RAG = True`; TXT, MD, 코드, JSON, CSV, 텍스트 PDF를 업로드합니다. 검색 결과가 없으면 답변을 만들지 않고, 답변에 실제 제공된 `[근거 N]`만 쓰는지 검증합니다.
 - Spec Kit 방식 업무 설계: `RUN_SPEC_AGENT = True`; 요청에서 `constitution.md`, `spec.md`, `plan.md`, `tasks.md`, `analysis.md`, `manifest.json`을 `/content/supergemma_specs/`에 만듭니다. 생성된 코드는 자동 실행하지 않습니다.
 - 실제 업무 평가: `RUN_MODEL_EVAL = True`; 7개 범주의 75문항을 계산기와 출력 계약(JSON·한 줄·줄 수) 도구를 포함한 엄격 지시문으로 실행합니다. 실패 문항만 정답 유출 없이 1회 자동 수정하고 `/content/model_eval_<preset>_<run-label>.json`에 저장합니다. 중단해도 같은 모델·평가셋·실행 라벨이면 이어서 실행합니다.
+- Codex형 미니 저장소 평가: `RUN_CODEX_EVAL = True`; 50개의 격리 저장소에서 모델이 JSON 도구 호출로 파일을 확인하고 수정한 뒤 공개 테스트를 실행합니다. 최종 점수는 모델에게 보이지 않은 숨은 테스트로 계산하며 계산기·검증기·재시도·외부 폴백을 사용하지 않습니다. 처음에는 `CODEX_EVAL_LIMIT = 5`를 권장합니다.
 - OpenAI 호환 Agent API: `RUN_API_SERVER = True`; 현재 모델을 재사용해 `/v1/chat/completions`, `/v1/rag/query`, `/v1/spec/run`을 열고 Bearer 토큰을 검사합니다.
 - 외부 API 주소: API 셀에서 `OPEN_EXTERNAL_TUNNEL = True`도 켜고 ngrok 토큰을 입력합니다. Colab 세션이 끝나면 주소도 종료됩니다.
 
@@ -61,6 +62,19 @@ EVAL_RUN_LABEL = "tool-agent-v4"
 95점 목표는 이 고정 평가셋에서 72/75 이상 통과한다는 뜻입니다. Codex 전체 능력의 95%라는 뜻은 아닙니다. 전체 평가는 T4에서 시간이 오래 걸리므로 범주별로 나눠 실행할 수 있습니다.
 
 Colab T4에서 측정한 단계별 결과와 남은 약점은 [docs/evaluation-results.md](docs/evaluation-results.md)에 기록했습니다.
+
+### Codex형 미니 저장소 50문항 평가
+
+평가셋은 [evals/codex_like_eval_50.json](evals/codex_like_eval_50.json), 실행기는 [supergemma_agent/codex_eval.py](supergemma_agent/codex_eval.py)에 있습니다. 설계와 점수 해석은 [docs/codex-like-eval.md](docs/codex-like-eval.md)를 참고하세요.
+
+```python
+RUN_CODEX_EVAL = True
+CODEX_EVAL_LIMIT = 5       # 파일럿, 전체는 50
+CODEX_EVAL_CATEGORIES = [] # 예: ["bug_fix"]
+CODEX_EVAL_RUN_LABEL = "direct-v1"
+```
+
+전체 50문항의 95점 목표는 48/50 통과입니다. 이 점수는 공개 형태를 참고해 만든 소형 평가의 통과율이지 OpenAI 비공개 Codex 평가의 백분율이 아닙니다. 실제 비교에는 반복 실행, 더 큰 실제 저장소, 장시간 작업, 브라우저·운영체제 도구 평가를 추가해야 합니다.
 
 API가 실행된 뒤 같은 Colab 런타임에서 확인하는 예:
 
@@ -110,6 +124,7 @@ OpenAI API Codex-style 노트북:
 - 무료 Colab과 임시 ngrok 주소는 상시 서비스용 API 서버가 아닙니다.
 - 같은 모델 검증기는 자기 오류를 놓칠 수 있습니다. 75문항의 결정적 채점 결과와 실패 사례를 함께 확인하세요.
 - 75문항 점수는 이 저장소의 회귀 비교 지표이며 범용 지능 백분율이 아닙니다.
+- Codex형 평가도 50개의 소형 Python 저장소에 한정됩니다. 점수를 일반 코딩 능력이나 Codex 대비 절대 비율로 해석하지 마세요.
 
 ## 원본
 

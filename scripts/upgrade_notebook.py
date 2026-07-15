@@ -73,7 +73,7 @@ def next_code(cells: list[dict], start: int, occurrence: int = 1) -> int:
 TOOLS_MARKDOWN = """
 ## 6. 품질 도구 동기화
 
-Spec Kit 방식 산출물 생성기와 75문항 평가기를 GitHub 저장소에서 가져옵니다. 동기화가 실패해도 기본 채팅은 계속 사용할 수 있지만 Spec 워크플로와 75문항 평가는 사용할 수 없습니다.
+Spec Kit 방식 산출물 생성기, 75문항 회귀 평가기, Codex형 미니 저장소 평가기를 GitHub 저장소에서 가져옵니다. 동기화가 실패해도 기본 채팅은 계속 사용할 수 있지만 선택 품질 기능은 사용할 수 없습니다.
 """
 
 
@@ -104,7 +104,15 @@ try:
             print("최신 도구 동기화 경고(캐시 사용):", update.stderr.strip()[:300])
     if str(AGENT_REPO_DIR) not in sys.path:
         sys.path.insert(0, str(AGENT_REPO_DIR))
+    import importlib
+
+    importlib.invalidate_caches()
+    for module_name in list(sys.modules):
+        if module_name == "supergemma_agent" or module_name.startswith("supergemma_agent."):
+            del sys.modules[module_name]
+
     from supergemma_agent import load_eval_cases, normalize_output, run_evaluation, solve_simple_math
+    from supergemma_agent import load_codex_cases, run_codex_evaluation
     from supergemma_agent import run_spec_workflow as generate_spec_workflow
 
     def ask_with_tools(question, contract_prompt=None, **options):
@@ -115,7 +123,7 @@ try:
         return normalize_output(requested_prompt, ask(question, **options))
 
     AGENT_TOOLS_AVAILABLE = True
-    print("Spec 워크플로, 계산기, 출력 계약, 75문항 평가 도구 준비 완료")
+    print("Spec 워크플로, 계산기, 출력 계약, 75문항, Codex형 50문항 평가 도구 준비 완료")
 except Exception as error:
     print("선택 품질 도구를 준비하지 못했습니다:", error)
 """
@@ -570,6 +578,79 @@ else:
 """
 
 
+CODEX_EVAL_MARKDOWN = """
+## 15. 선택: Codex형 미니 저장소 50문항 평가
+
+짧은 답을 비교하지 않고 `파일 확인 → 코드 수정 → 공개 테스트 → 숨은 테스트`로 채점합니다. 모델은 JSON 도구 호출만 사용하며 저장소 밖 접근, 셸, 네트워크, 테스트 수정은 차단됩니다. 계산기·답변 검증·재시도·전문가 API 폴백을 사용하지 않는 로컬 모델 직접 점수입니다.
+
+처음에는 `CODEX_EVAL_LIMIT = 5` 파일럿을 실행하세요. 전체 50문항은 모델 호출이 여러 번 필요해 무료 T4에서 오래 걸리므로 같은 실행 라벨로 나누어 재개할 수 있습니다. 95점은 이 미니 평가에서 48/50 통과라는 뜻이며 OpenAI 비공개 Codex 평가와 동일하다는 뜻은 아닙니다.
+"""
+
+
+CODEX_EVAL_CODE = r"""
+RUN_CODEX_EVAL = False
+CODEX_EVAL_LIMIT = 5  # 파일럿 5, 전체 50
+CODEX_EVAL_CATEGORIES = []  # 예: ["bug_fix", "multi_file_change"]
+CODEX_EVAL_RESUME = True
+CODEX_EVAL_RUN_LABEL = "direct-v1"
+CODEX_EVAL_DATA_URL = "https://raw.githubusercontent.com/kingwabg/supergemma4-colab-runner/main/evals/codex_like_eval_50.json"
+
+if not RUN_CODEX_EVAL:
+    print("Codex형 평가는 기본 OFF입니다. RUN_CODEX_EVAL = True로 바꾸고 이 셀만 실행하세요.")
+    print("처음에는 5문항 파일럿을 권장합니다. 전체 평가는 오래 걸리며 문항마다 자동 저장됩니다.")
+else:
+    if not AGENT_TOOLS_AVAILABLE:
+        raise RuntimeError("품질 도구 동기화 셀을 먼저 실행하세요.")
+    local_codex_eval_path = AGENT_REPO_DIR / "evals" / "codex_like_eval_50.json"
+    codex_cases = load_codex_cases(
+        local_codex_eval_path if local_codex_eval_path.exists() else CODEX_EVAL_DATA_URL,
+        min_cases=50,
+    )
+    codex_eval_output = Path(f"/content/codex_like_eval_{MODEL_PRESET}_{CODEX_EVAL_RUN_LABEL}.json")
+
+    def codex_generate_action(messages, **options):
+        return call_local_chat(
+            messages,
+            max_tokens=options.get("max_tokens", 900),
+            temperature=0.0,
+            use_thinking=options.get("use_thinking", True),
+        )
+
+    def print_codex_step(step):
+        print(f"  {step['id']} 단계 {step['step']}: {step.get('action', 'unknown')}")
+
+    def print_codex_result(item):
+        status = "통과" if item.get("passed") else "실패"
+        error = item.get("error") or item.get("hidden_output", "").splitlines()[-1:]
+        print(
+            f"{status} | {item['id']} | {item['category']} | "
+            f"숨은 테스트={item.get('hidden_tests_passed', False)} | "
+            f"단계={item.get('steps', 0)} | {error}"
+        )
+
+    codex_eval_report = run_codex_evaluation(
+        codex_generate_action,
+        codex_cases,
+        codex_eval_output,
+        run_id=f"{MODEL_PRESET}:{config['label']}:{CODEX_EVAL_RUN_LABEL}",
+        categories=CODEX_EVAL_CATEGORIES or None,
+        limit=CODEX_EVAL_LIMIT,
+        resume=CODEX_EVAL_RESUME,
+        on_result=print_codex_result,
+        on_step=print_codex_step,
+    )
+    codex_summary = codex_eval_report["summary"]
+    print(f"\nCodex형 직접 점수: {codex_summary['score']}점 ({codex_summary['passed']}/{codex_summary['completed']})")
+    print(f"숨은 테스트 통과율: {codex_summary['hidden_test_rate']}점")
+    print(f"도구 형식 준수율: {codex_summary['protocol_compliance_rate']}점")
+    print(f"평균 도구 단계: {codex_summary['average_steps']}")
+    print("범주별 점수:")
+    for category, result in codex_summary["categories"].items():
+        print(f"- {category}: {result['score']}점 ({result['passed']}/{result['total']})")
+    print("결과 파일:", codex_eval_output)
+"""
+
+
 API_CODE = r"""
 RUN_API_SERVER = False
 OPEN_EXTERNAL_TUNNEL = False
@@ -772,10 +853,16 @@ def main() -> None:
     notebook = json.loads(NOTEBOOK_PATH.read_text(encoding="utf-8"))
     cells = notebook["cells"]
 
-    set_source(cells[0], source_text(cells[0]).replace(
+    title_source = source_text(cells[0])
+    for old_title in (
         "# T4 GGUF Pro: Gemma 4 · Qwen3.5 · API · RAG",
         "# T4 GGUF Pro Agent: Gemma 4 · Spec · RAG · 75 Eval · API",
-    ))
+    ):
+        title_source = title_source.replace(
+            old_title,
+            "# T4 GGUF Pro Agent: Gemma 4 · RAG · Spec · Codex형 평가 · API",
+        )
+    set_source(cells[0], title_source)
 
     common_index = find_cell(cells, "공통 채팅 함수")
     common_code_index = next_code(cells, common_index)
@@ -797,7 +884,7 @@ def main() -> None:
         (("연속 채팅",), "## 11. 선택: 연속 채팅"),
         (("문서 업로드 RAG",), "## 12. 선택: 문서 업로드 RAG"),
         (("모델 비교 평가", "실제 업무형 75문항 평가"), "## 14. 선택: 실제 업무형 75문항 평가"),
-        (("OpenAI 호환 API 서버", "OpenAI 호환 Agent API 서버"), "## 15. 선택: OpenAI 호환 Agent API 서버"),
+        (("OpenAI 호환 API 서버", "OpenAI 호환 Agent API 서버"), "## 16. 선택: OpenAI 호환 Agent API 서버"),
     )
     for markers, new_heading in heading_updates:
         index = find_cell_any(cells, *markers)
@@ -839,8 +926,19 @@ def main() -> None:
     set_source(cells[eval_index], eval_lines[0] + eval_body)
     set_source(cells[next_code(cells, eval_index)], EVAL_CODE)
 
+    existing_codex_eval = next((i for i, cell in enumerate(cells) if cell.get("id") == "codex-eval-md"), None)
     api_index = find_cell(cells, "OpenAI 호환 Agent API 서버")
-    api_markdown = """## 15. 선택: OpenAI 호환 Agent API 서버
+    if existing_codex_eval is None:
+        cells[api_index:api_index] = [
+            markdown(CODEX_EVAL_MARKDOWN, "codex-eval-md"),
+            code(CODEX_EVAL_CODE, "codex-eval-code"),
+        ]
+    else:
+        set_source(cells[existing_codex_eval], CODEX_EVAL_MARKDOWN)
+        set_source(cells[existing_codex_eval + 1], CODEX_EVAL_CODE)
+
+    api_index = find_cell(cells, "OpenAI 호환 Agent API 서버")
+    api_markdown = """## 16. 선택: OpenAI 호환 Agent API 서버
 
 기본 `/v1/chat/completions`에 `quality_mode=direct|verified|hybrid`를 추가하고, 업로드 RAG 인덱스를 쓰는 `/v1/rag/query`, Spec 산출물을 만드는 `/v1/spec/run`을 제공합니다. Bearer 토큰을 검사하며 외부 터널과 강한 API 폴백은 기본 OFF입니다.
 """
@@ -851,6 +949,8 @@ def main() -> None:
     problems = source_text(cells[problems_index])
     if "75문항 평가가 오래 걸림" not in problems:
         problems += "\n- 75문항 평가가 오래 걸림: 정상입니다. `EVAL_CATEGORIES`나 `EVAL_LIMIT`로 나누어 실행하고 같은 결과 파일에서 재개하세요.\n- Spec 도구 동기화 실패: 품질 도구 셀을 다시 실행하거나 GitHub 접속 상태를 확인하세요. 기본 채팅에는 영향이 없습니다.\n"
+    if "Codex형 평가가 오래 걸림" not in problems:
+        problems += "- Codex형 평가가 오래 걸림: 한 문항이 여러 모델 호출을 사용합니다. `CODEX_EVAL_LIMIT = 5`부터 시작하고 같은 실행 라벨로 재개하세요.\n"
     set_source(cells[problems_index], problems)
 
     for cell in cells:
