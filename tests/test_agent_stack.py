@@ -218,7 +218,10 @@ class NotebookTests(unittest.TestCase):
     def test_codex_eval_cell_is_direct_and_bounded(self):
         source = notebook_cell_source("RUN_CODEX_EVAL")
         self.assertIn("CODEX_EVAL_LIMIT = 5", source)
-        self.assertIn("run_codex_evaluation", source)
+        self.assertIn("CODEX_EVAL_REPEATS = 1", source)
+        self.assertIn("run_codex_repeated_evaluation", source)
+        self.assertIn("system_score", source)
+        self.assertIn("CODEX_EVAL_STORE_DETAILS", source)
         self.assertIn("call_local_chat", source)
         self.assertNotIn("answer_with_validation", source)
         self.assertNotIn("call_upstream", source)

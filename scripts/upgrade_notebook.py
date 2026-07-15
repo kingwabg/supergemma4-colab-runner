@@ -112,7 +112,7 @@ try:
             del sys.modules[module_name]
 
     from supergemma_agent import load_eval_cases, normalize_output, run_evaluation, solve_simple_math
-    from supergemma_agent import load_codex_cases, run_codex_evaluation
+    from supergemma_agent import load_codex_cases, run_codex_evaluation, run_codex_repeated_evaluation
     from supergemma_agent import load_agentic_cases, run_agentic_evaluation
     from supergemma_agent import run_spec_workflow as generate_spec_workflow
 
@@ -582,7 +582,9 @@ else:
 CODEX_EVAL_MARKDOWN = """
 ## 15. 선택: Codex형 미니 저장소 50문항 평가
 
-짧은 답을 비교하지 않고 `파일 확인 → 코드 수정 → 공개 테스트 → 숨은 테스트`로 채점합니다. 모델은 JSON 도구 호출만 사용하며 저장소 밖 접근, 셸, 네트워크, 테스트 수정은 차단됩니다. 계산기·답변 검증·재시도·전문가 API 폴백을 사용하지 않는 로컬 모델 직접 점수입니다.
+짧은 답을 비교하지 않고 `명세 체크리스트 → 파일 확인 → 코드 수정 → 공개 테스트 → 숨은 테스트`로 채점합니다. 코드 본문은 JSON 이스케이프 오류를 피하는 `WRITE_FILE` 센티널로 쓰고, 메타데이터 도구만 JSON을 사용합니다. 저장소 밖 접근, 셸, 네트워크, 테스트 수정은 차단됩니다.
+
+`엄격 모델 점수`는 모델이 직접 `finish`까지 호출해야 통과합니다. `시스템 점수`는 단계가 소진돼도 현재 디스크를 자동 제출해 코드가 맞으면 통과시키며 두 점수를 섞지 않고 함께 보고합니다. 계산기·답변 검증·정답 기반 재시도·전문가 API 폴백은 사용하지 않습니다.
 
 처음에는 `CODEX_EVAL_LIMIT = 5` 파일럿을 실행하세요. 전체 50문항은 모델 호출이 여러 번 필요해 무료 T4에서 오래 걸리므로 같은 실행 라벨로 나누어 재개할 수 있습니다. 95점은 이 미니 평가에서 48/50 통과라는 뜻이며 OpenAI 비공개 Codex 평가와 동일하다는 뜻은 아닙니다.
 """
@@ -593,7 +595,11 @@ RUN_CODEX_EVAL = False
 CODEX_EVAL_LIMIT = 5  # 파일럿 5, 전체 50
 CODEX_EVAL_CATEGORIES = []  # 예: ["bug_fix", "multi_file_change"]
 CODEX_EVAL_RESUME = True
-CODEX_EVAL_RUN_LABEL = "direct-v1"
+CODEX_EVAL_REPEATS = 1  # 신뢰도 측정은 3 권장, 최대 5
+CODEX_EVAL_SPLIT = "dev"  # 별도 봉인 평가셋은 heldout
+CODEX_EVAL_EXPECTED_CASES = 50
+CODEX_EVAL_STORE_DETAILS = CODEX_EVAL_SPLIT == "dev"  # heldout은 요약만 저장
+CODEX_EVAL_RUN_LABEL = "sentinel-plan-v2"
 CODEX_EVAL_DATA_URL = "https://raw.githubusercontent.com/kingwabg/supergemma4-colab-runner/main/evals/codex_like_eval_50.json"
 
 if not RUN_CODEX_EVAL:
@@ -603,48 +609,81 @@ else:
     if not AGENT_TOOLS_AVAILABLE:
         raise RuntimeError("품질 도구 동기화 셀을 먼저 실행하세요.")
     local_codex_eval_path = AGENT_REPO_DIR / "evals" / "codex_like_eval_50.json"
-    codex_cases = load_codex_cases(
-        local_codex_eval_path if local_codex_eval_path.exists() else CODEX_EVAL_DATA_URL,
-        min_cases=50,
+    codex_eval_source = (
+        local_codex_eval_path
+        if CODEX_EVAL_SPLIT == "dev" and local_codex_eval_path.exists()
+        else CODEX_EVAL_DATA_URL
     )
-    codex_eval_output = Path(f"/content/codex_like_eval_{MODEL_PRESET}_{CODEX_EVAL_RUN_LABEL}.json")
+    codex_cases = load_codex_cases(
+        codex_eval_source,
+        min_cases=CODEX_EVAL_EXPECTED_CASES,
+        max_cases=CODEX_EVAL_EXPECTED_CASES,
+    )
+    codex_eval_output = Path(f"/content/codex_like_eval_{MODEL_PRESET}_{CODEX_EVAL_SPLIT}_{CODEX_EVAL_RUN_LABEL}.json")
 
     def codex_generate_action(messages, **options):
+        call_options = {
+            "max_tokens": options.get("max_tokens", 900),
+            "temperature": 0.0,
+            "use_thinking": options.get("use_thinking", True),
+        }
+        if options.get("response_format"):
+            call_options["response_format"] = options["response_format"]
         return call_local_chat(
             messages,
-            max_tokens=options.get("max_tokens", 900),
-            temperature=0.0,
-            use_thinking=options.get("use_thinking", True),
+            **call_options,
         )
 
     def print_codex_step(step):
         print(f"  {step['id']} 단계 {step['step']}: {step.get('action', 'unknown')}")
 
     def print_codex_result(item):
-        status = "통과" if item.get("passed") else "실패"
+        strict_status = "엄격통과" if item.get("strict_track_passed") else "엄격실패"
+        system_status = "시스템통과" if item.get("system_track_passed") else "시스템실패"
+        auto_label = " | 자동제출" if item.get("auto_submitted") else ""
         error = item.get("error") or item.get("hidden_output", "").splitlines()[-1:]
         print(
-            f"{status} | {item['id']} | {item['category']} | "
+            f"{strict_status}/{system_status}{auto_label} | {item['id']} | {item['category']} | "
             f"숨은 테스트={item.get('hidden_tests_passed', False)} | "
             f"단계={item.get('steps', 0)} | {error}"
         )
 
-    codex_eval_report = run_codex_evaluation(
+    codex_eval_batch = run_codex_repeated_evaluation(
         codex_generate_action,
         codex_cases,
         codex_eval_output,
-        run_id=f"{MODEL_PRESET}:{config['label']}:{CODEX_EVAL_RUN_LABEL}",
+        run_id=f"{MODEL_PRESET}:{config['label']}:{CODEX_EVAL_SPLIT}:{CODEX_EVAL_RUN_LABEL}",
+        repeats=CODEX_EVAL_REPEATS,
         categories=CODEX_EVAL_CATEGORIES or None,
         limit=CODEX_EVAL_LIMIT,
         resume=CODEX_EVAL_RESUME,
-        on_result=print_codex_result,
-        on_step=print_codex_step,
+        store_details=CODEX_EVAL_STORE_DETAILS,
+        on_result=print_codex_result if CODEX_EVAL_STORE_DETAILS else None,
+        on_step=print_codex_step if CODEX_EVAL_STORE_DETAILS else None,
     )
+    codex_eval_report = codex_eval_batch["reports"][-1]
     codex_summary = codex_eval_report["summary"]
-    print(f"\nCodex형 직접 점수: {codex_summary['score']}점 ({codex_summary['passed']}/{codex_summary['completed']})")
+    print(f"\n엄격 모델 점수: {codex_summary['score']}점 ({codex_summary['passed']}/{codex_summary['completed']})")
+    print(f"자동 제출 시스템 점수: {codex_summary['system_score']}점 ({codex_summary['system_passed']}/{codex_summary['completed']})")
+    print(f"자동 제출로 복구된 문항: {codex_summary['auto_submit_recoveries']}개")
     print(f"숨은 테스트 통과율: {codex_summary['hidden_test_rate']}점")
     print(f"도구 형식 준수율: {codex_summary['protocol_compliance_rate']}점")
     print(f"평균 도구 단계: {codex_summary['average_steps']}")
+    print(f"최대 누적 프롬프트 문자 수: {codex_summary['max_prompt_chars']}")
+    print(f"센티널/JSON 파일 쓰기: {codex_summary['sentinel_writes']}/{codex_summary['json_writes']}")
+    if not CODEX_EVAL_STORE_DETAILS:
+        print("heldout 요약 모드: 문항별 transcript, 코드, 실패 출력을 저장하지 않았습니다.")
+    if CODEX_EVAL_REPEATS > 1:
+        aggregate = codex_eval_batch["aggregate"]
+        print(
+            f"반복 엄격 점수: {aggregate['strict_score_mean']} ± {aggregate['strict_score_stddev']} "
+            f"(최저 {aggregate['strict_score_min']}, 최고 {aggregate['strict_score_max']})"
+        )
+        print(
+            f"반복 시스템 점수: {aggregate['system_score_mean']} ± {aggregate['system_score_stddev']} "
+            f"(최저 {aggregate['system_score_min']}, 최고 {aggregate['system_score_max']})"
+        )
+        print("반복 집계 파일:", codex_eval_batch["aggregate_path"])
     print("범주별 점수:")
     for category, result in codex_summary["categories"].items():
         print(f"- {category}: {result['score']}점 ({result['passed']}/{result['total']})")

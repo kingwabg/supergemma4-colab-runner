@@ -33,7 +33,7 @@ T4 GGUF Pro 노트북:
 - 문서 RAG: `RUN_RAG = True`; TXT, MD, 코드, JSON, CSV, 텍스트 PDF를 업로드합니다. 검색 결과가 없으면 답변을 만들지 않고, 답변에 실제 제공된 `[근거 N]`만 쓰는지 검증합니다.
 - Spec Kit 방식 업무 설계: `RUN_SPEC_AGENT = True`; 요청에서 `constitution.md`, `spec.md`, `plan.md`, `tasks.md`, `analysis.md`, `manifest.json`을 `/content/supergemma_specs/`에 만듭니다. 생성된 코드는 자동 실행하지 않습니다.
 - 실제 업무 평가: `RUN_MODEL_EVAL = True`; 7개 범주의 75문항을 계산기와 출력 계약(JSON·한 줄·줄 수) 도구를 포함한 엄격 지시문으로 실행합니다. 실패 문항만 정답 유출 없이 1회 자동 수정하고 `/content/model_eval_<preset>_<run-label>.json`에 저장합니다. 중단해도 같은 모델·평가셋·실행 라벨이면 이어서 실행합니다.
-- Codex형 미니 저장소 평가: `RUN_CODEX_EVAL = True`; 50개의 격리 저장소에서 모델이 JSON 도구 호출로 파일을 확인하고 수정한 뒤 공개 테스트를 실행합니다. 최종 점수는 모델에게 보이지 않은 숨은 테스트로 계산하며 계산기·검증기·재시도·외부 폴백을 사용하지 않습니다. 처음에는 `CODEX_EVAL_LIMIT = 5`를 권장합니다.
+- Codex형 미니 저장소 평가: `RUN_CODEX_EVAL = True`; 50개의 격리 저장소에서 명세 체크리스트를 만든 뒤 파일을 확인하고, 코드 본문은 JSON 밖 `WRITE_FILE` 센티널로 수정합니다. 엄격 모델 점수와 자동 제출 시스템 점수를 분리하고 숨은 테스트로 채점합니다. 처음에는 `CODEX_EVAL_LIMIT = 5`를 권장합니다.
 - 도구 에이전트 행동 평가: `RUN_AGENTIC_EVAL = True`; 탐색·검증·범위 준수·프롬프트 인젝션 저항·삭제/Git/브라우저 안전·도구 효율·정직한 보고를 20개 격리 시나리오에서 평가합니다. 파일 상태, 도구 로그, 최종 보고 LLM 채점 세 계층을 모두 통과해야 합니다.
 - OpenAI 호환 Agent API: `RUN_API_SERVER = True`; 현재 모델을 재사용해 `/v1/chat/completions`, `/v1/rag/query`, `/v1/spec/run`을 열고 Bearer 토큰을 검사합니다.
 - 외부 API 주소: API 셀에서 `OPEN_EXTERNAL_TUNNEL = True`도 켜고 ngrok 토큰을 입력합니다. Colab 세션이 끝나면 주소도 종료됩니다.
@@ -72,10 +72,14 @@ Colab T4에서 측정한 단계별 결과와 남은 약점은 [docs/evaluation-r
 RUN_CODEX_EVAL = True
 CODEX_EVAL_LIMIT = 5       # 파일럿, 전체는 50
 CODEX_EVAL_CATEGORIES = [] # 예: ["bug_fix"]
-CODEX_EVAL_RUN_LABEL = "direct-v1"
+CODEX_EVAL_REPEATS = 1     # 최종 비교는 3 권장
+CODEX_EVAL_SPLIT = "dev"
+CODEX_EVAL_RUN_LABEL = "sentinel-plan-v2"
 ```
 
-전체 50문항의 95점 목표는 48/50 통과입니다. 이 점수는 공개 형태를 참고해 만든 소형 평가의 통과율이지 OpenAI 비공개 Codex 평가의 백분율이 아닙니다. 실제 비교에는 반복 실행, 더 큰 실제 저장소, 장시간 작업, 브라우저·운영체제 도구 평가를 추가해야 합니다.
+전체 50문항의 95점 목표는 48/50 통과입니다. `score`는 모델이 직접 `finish`까지 호출해야 하는 엄격 트랙이고, `system_score`는 단계 소진 시 현재 디스크를 자동 제출하는 제품 하니스 트랙입니다. 반복 실행은 평균·표준편차·최저·최고를 별도 집계 파일로 저장합니다.
+
+현재 50문항은 실패를 확인하며 개선하는 `dev` 평가셋입니다. 최종 일반화 점수는 같은 형식의 별도 봉인 데이터 URL을 `CODEX_EVAL_SPLIT = "heldout"`, `CODEX_EVAL_EXPECTED_CASES = 20~30`으로 설정해 측정해야 합니다. held-out 모드에서는 문항별 transcript·코드·실패 출력을 결과 파일에 남기지 않고 요약 점수만 저장합니다. 이 점수는 공개 형태를 참고해 만든 소형 평가의 통과율이지 OpenAI 비공개 Codex 평가의 백분율이 아닙니다.
 
 ### 도구 에이전트 행동 20문항 평가
 

@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 """
 
 
-def task(case_id, category, title, instruction, files, public_test, hidden_test, *, max_steps=6, max_tokens=900):
+def task(case_id, category, title, instruction, files, public_test, hidden_test, *, max_steps=8, max_tokens=900):
     return {
         "id": case_id,
         "category": category,
@@ -31,6 +31,7 @@ def task(case_id, category, title, instruction, files, public_test, hidden_test,
         "hidden_test": TEST_HEADER + hidden_test.strip() + "\n\nif __name__ == '__main__':\n    unittest.main()\n",
         "max_steps": max_steps,
         "max_tokens": max_tokens,
+        "require_plan": True,
     }
 
 
@@ -889,9 +890,10 @@ def main():
         raise SystemExit(f"expected 50 cases, got {len(CASES)}")
     counts = Counter(case["category"] for case in CASES)
     payload = {
-        "version": "2026-07-16.2",
+        "version": "2026-07-16.3",
         "name": "SuperGemma Codex-like Mini Repo Eval 50",
-        "description": "Fifty isolated repository tasks with tool calls, public tests, hidden tests, and safety guards. This is not OpenAI's private Codex evaluation corpus.",
+        "description": "Fifty isolated repository tasks with a required specification checklist, sentinel file writes, public tests, hidden tests, dual strict/system scoring, and safety guards. This is not OpenAI's private Codex evaluation corpus.",
+        "protocol_version": "sentinel-plan-v1",
         "target_score": 95,
         "target_passes": 48,
         "category_counts": dict(sorted(counts.items())),
