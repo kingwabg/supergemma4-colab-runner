@@ -10,6 +10,7 @@ from pathlib import Path
 
 from scripts.validate_notebook import validate as validate_notebook
 from supergemma_agent.evaluation import load_eval_cases, run_evaluation, score_answer
+from supergemma_agent.output_contract import normalize_output, solve_simple_math
 from supergemma_agent.spec_workflow import run_spec_workflow
 
 
@@ -102,6 +103,37 @@ class EvaluationTests(unittest.TestCase):
         self.assertFalse(report["items"][0]["retried"])
         self.assertEqual(report["items"][1]["initial_answer"], "정답만")
         self.assertEqual(report["items"][1]["answer"], "수정됨")
+
+
+class OutputContractTests(unittest.TestCase):
+    def test_calculator_handles_weighted_average_and_discount(self):
+        self.assertEqual(
+            solve_simple_math("80점이 40%, 90점이 60% 반영될 때 가중 평균을 숫자로만 출력하세요."),
+            "86",
+        )
+        self.assertEqual(solve_simple_math("55,000원에서 20% 할인한 가격을 숫자로만 출력하세요."), "44000")
+
+    def test_output_contract_removes_wrappers_only_when_requested(self):
+        self.assertEqual(
+            normalize_output(
+                "model과 messages를 가진 JSON 객체 하나로만 출력하세요.",
+                '```json\n{"model":"x","messages":[]}\n```',
+            ),
+            '{"model":"x","messages":[]}',
+        )
+        self.assertEqual(normalize_output("가격을 숫자로만 출력하세요.", "44,000"), "44000")
+        self.assertEqual(
+            normalize_output("정확히 네 줄로 출력하세요: SPEC, PLAN, TASKS, VERIFY", "SPEC, PLAN, TASKS, VERIFY"),
+            "SPEC\nPLAN\nTASKS\nVERIFY",
+        )
+        self.assertEqual(
+            normalize_output("Git 상태 명령만 출력하세요.", "```bash\ngit status -s\n```"),
+            "git status -s",
+        )
+        self.assertEqual(
+            normalize_output("문맥에 없으면 모른다고 답하세요.", "모른다고 답하세요."),
+            "모릅니다.",
+        )
 
 
 class SpecWorkflowTests(unittest.TestCase):

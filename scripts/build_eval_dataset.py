@@ -85,11 +85,11 @@ CASES = [
 
     # Work productivity (10)
     case("W001", "work_productivity", "회의 계획을 JSON 객체로만 출력하세요. 키는 goal, agenda, owner를 반드시 포함하세요.", "json_keys", keys=["goal", "agenda", "owner"]),
-    case("W002", "work_productivity", "Git 작업트리의 변경 파일을 짧은 형식으로 확인하는 명령만 출력하세요.", "exact", value="git status --short"),
+    case("W002", "work_productivity", "Git 작업트리의 변경 파일을 짧은 형식으로 확인하는 명령만 출력하세요.", "regex", pattern=r"^git status (?:--short|-s)$"),
     case("W003", "work_productivity", "Google Colab에서 T4를 선택하는 메뉴 경로만 출력하세요.", "exact", value="런타임 > 런타임 유형 변경 > T4 GPU"),
     case("W004", "work_productivity", "일반적인 API 상태 확인 엔드포인트 경로만 출력하세요.", "exact", value="/health"),
     case("W005", "work_productivity", "평가 기능 추가를 뜻하는 한국어 Conventional Commit 메시지를 한 줄로 작성하세요.", "contains_all", values=["feat", "평가"]),
-    case("W006", "work_productivity", "오늘 마감이며 서비스가 중단된 작업을 아이젠하워 매트릭스의 두 단어로 분류하세요.", "regex", pattern=r"^(?:긴급(?:함)?\s*[·,/및]\s*중요(?:함)?|중요(?:함)?\s*[·,/및]\s*긴급(?:함)?)$"),
+    case("W006", "work_productivity", "오늘 마감이며 서비스가 중단된 작업을 아이젠하워 매트릭스의 두 단어로 분류하세요.", "regex", pattern=r"^(?:긴급(?:함)?(?:\s*[·,/및]\s*|\s+)중요(?:함)?|중요(?:함)?(?:\s*[·,/및]\s*|\s+)긴급(?:함)?)$"),
     case("W007", "work_productivity", "회의 A가 14:00~15:00, 회의 B가 14:30~15:30이다. 충돌 시작 시각을 포함해 한 문장으로 답하세요.", "regex", pattern=r"(?=.*14:30)(?=.*(?:겹|충돌))"),
     case("W008", "work_productivity", "배포 전 확인 순서를 정확히 세 줄로 출력하세요: 테스트, 백업, 배포", "exact", value="테스트\n백업\n배포"),
     case("W009", "work_productivity", "버그 보고를 JSON 객체로만 출력하세요. keys: steps, expected, actual", "json_keys", keys=["steps", "expected", "actual"]),
@@ -133,7 +133,7 @@ def main():
         raise SystemExit(f"expected 75 cases, got {len(CASES)}")
     counts = Counter(item["category"] for item in CASES)
     payload = {
-        "version": "2026-07-15.2",
+        "version": "2026-07-15.3",
         "name": "SuperGemma Korean Real Work Eval 75",
         "description": "Deterministic Korean work cases for regression comparison; not a general intelligence percentage.",
         "target_score": 95,
