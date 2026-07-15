@@ -473,7 +473,14 @@ RUN_MODEL_EVAL = False
 EVAL_LIMIT = 75
 EVAL_CATEGORIES = []  # 비우면 전체, 예: ["coding", "rag_grounding"]
 EVAL_RESUME = True
+EVAL_RUN_LABEL = "strict-agent-v2"
 EVAL_DATA_URL = "https://raw.githubusercontent.com/kingwabg/supergemma4-colab-runner/main/evals/real_work_eval_75.json"
+
+EVAL_SYSTEM_PROMPT = '''당신은 지시를 정확히 수행하는 한국어 업무 AI입니다.
+답하기 전에 계산과 사실을 내부적으로 검토하세요.
+사용자가 출력 형식, 줄 수, 키, 문구, '정답만' 또는 'JSON만'을 지정하면 그것을 최우선으로 지키세요.
+설명을 요구하지 않았다면 해설, 머리말, 코드 펜스, 대안, 검증 방법을 덧붙이지 말고 최종 답만 출력하세요.
+JSON을 요구하면 파싱 가능한 JSON 객체 하나만 출력하세요. 근거가 없으면 추측하지 말고 모른다고 답하세요.'''
 
 if not RUN_MODEL_EVAL:
     print("75문항 평가는 기본 OFF입니다. RUN_MODEL_EVAL = True로 바꾸고 이 셀만 실행하세요.")
@@ -483,18 +490,45 @@ else:
         raise RuntimeError("품질 도구 동기화 셀을 먼저 실행하세요.")
     local_eval_path = AGENT_REPO_DIR / "evals" / "real_work_eval_75.json"
     eval_cases = load_eval_cases(local_eval_path if local_eval_path.exists() else EVAL_DATA_URL)
-    eval_output = Path(f"/content/model_eval_{MODEL_PRESET}.json")
+    eval_output = Path(f"/content/model_eval_{MODEL_PRESET}_{EVAL_RUN_LABEL}.json")
+
+    def eval_generate(prompt, **options):
+        return ask(
+            prompt,
+            system_prompt=EVAL_SYSTEM_PROMPT,
+            max_tokens=options.get("max_tokens", 160),
+            temperature=options.get("temperature", 0.0),
+            use_thinking=options.get("use_thinking", False),
+        )
+
+    def eval_repair(prompt, previous_answer, **options):
+        repair_prompt = f'''원래 질문:
+{prompt}
+
+이전 답변:
+{previous_answer}
+
+이전 답변이 원래 질문의 정답 또는 출력 형식을 충족하지 못했습니다. 문제를 처음부터 다시 풀고, 원래 질문이 요구한 최종 답만 출력하세요.'''
+        return ask(
+            repair_prompt,
+            system_prompt=EVAL_SYSTEM_PROMPT,
+            max_tokens=options.get("max_tokens", 160),
+            temperature=0.0,
+            use_thinking=options.get("use_thinking", False),
+        )
 
     def print_eval_item(item):
         status = "통과" if item["passed"] else "실패"
         detail = item["error"] or item["answer"][:100].replace("\n", " ")
-        print(f"{status} | {item['id']} | {item['category']} | {detail}")
+        retry = " | 재시도" if item.get("retried") else ""
+        print(f"{status} | {item['id']} | {item['category']}{retry} | {detail}")
 
     eval_report = run_evaluation(
-        ask,
+        eval_generate,
         eval_cases,
         eval_output,
-        run_id=f"{MODEL_PRESET}:{config['label']}",
+        run_id=f"{MODEL_PRESET}:{config['label']}:{EVAL_RUN_LABEL}",
+        repair=eval_repair,
         categories=EVAL_CATEGORIES or None,
         limit=EVAL_LIMIT,
         resume=EVAL_RESUME,

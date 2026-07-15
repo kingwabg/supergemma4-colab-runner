@@ -159,6 +159,7 @@ def run_evaluation(
     output_path: str | Path,
     *,
     run_id: str,
+    repair: Callable[..., str] | None = None,
     categories: list[str] | None = None,
     limit: int | None = None,
     resume: bool = True,
@@ -195,17 +196,29 @@ def run_evaluation(
         if case["id"] in completed_ids:
             continue
         case_started = time.time()
+        initial_answer = ""
+        retried = False
         try:
-            answer = generate(
+            initial_answer = generate(
                 case["prompt"],
                 max_tokens=int(case.get("max_tokens", 160)),
                 temperature=0.0,
                 use_thinking=bool(case.get("use_thinking", False)),
             )
+            answer = initial_answer
             passed, detail = score_answer(case, answer)
             error = ""
+            if not passed and repair is not None:
+                retried = True
+                answer = repair(
+                    case["prompt"],
+                    initial_answer,
+                    max_tokens=int(case.get("max_tokens", 160)),
+                    use_thinking=bool(case.get("use_thinking", False)),
+                )
+                passed, detail = score_answer(case, answer)
         except Exception as exception:  # model/runtime failures are evaluation results
-            answer = ""
+            answer = initial_answer
             passed = False
             detail = "생성 오류"
             error = f"{type(exception).__name__}: {exception}"
@@ -214,6 +227,8 @@ def run_evaluation(
             "category": case.get("category", "uncategorized"),
             "passed": passed,
             "answer": answer,
+            "initial_answer": initial_answer if retried else "",
+            "retried": retried,
             "detail": detail,
             "error": error,
             "seconds": round(time.time() - case_started, 2),

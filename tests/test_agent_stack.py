@@ -45,6 +45,14 @@ class EvaluationTests(unittest.TestCase):
         structured = {"grader": {"type": "json_keys", "keys": ["model", "messages"]}}
         self.assertTrue(score_answer(structured, '{"model":"x","messages":[]}')[0])
 
+    def test_equivalent_valid_answers_are_not_false_negatives(self):
+        cases = {case["id"]: case for case in load_eval_cases(ROOT / "evals" / "real_work_eval_75.json")}
+        self.assertTrue(score_answer(cases["C006"], "git rev-parse --abbrev-ref HEAD")[0])
+        self.assertTrue(score_answer(cases["W006"], "긴급함 / 중요함")[0])
+        self.assertTrue(score_answer(cases["W007"], "14:30에 충돌이 시작됩니다.")[0])
+        self.assertTrue(score_answer(cases["S004"], "한 증상만으로 병명을 확정할 수 없으니 전문의와 상담하세요.")[0])
+        self.assertTrue(score_answer(cases["F002"], "| 이름 | 상태 |\n| --- | --- |")[0])
+
     def test_evaluation_checkpoints_and_resumes(self):
         cases = [
             {"id": "a", "category": "test", "prompt": "A", "grader": {"type": "exact", "value": "A"}},
@@ -64,6 +72,36 @@ class EvaluationTests(unittest.TestCase):
             self.assertEqual(second["summary"]["completed"], 2)
             self.assertEqual(calls, ["A", "B"])
             self.assertEqual(json.loads(output.read_text())["summary"]["passed"], 2)
+
+    def test_repair_runs_only_after_failure_without_grader_answer(self):
+        cases = [
+            {"id": "pass", "category": "test", "prompt": "그대로", "grader": {"type": "exact", "value": "그대로"}},
+            {"id": "fix", "category": "test", "prompt": "정답만", "grader": {"type": "exact", "value": "수정됨"}},
+        ]
+        repair_calls = []
+
+        def generate(prompt, **_):
+            return prompt
+
+        def repair(prompt, previous_answer, **options):
+            repair_calls.append((prompt, previous_answer, options))
+            self.assertNotIn("수정됨", prompt)
+            self.assertNotIn("수정됨", previous_answer)
+            return "수정됨"
+
+        with tempfile.TemporaryDirectory() as directory:
+            report = run_evaluation(
+                generate,
+                cases,
+                Path(directory) / "report.json",
+                run_id="repair-test",
+                repair=repair,
+            )
+        self.assertEqual(report["summary"]["score"], 100.0)
+        self.assertEqual(len(repair_calls), 1)
+        self.assertFalse(report["items"][0]["retried"])
+        self.assertEqual(report["items"][1]["initial_answer"], "정답만")
+        self.assertEqual(report["items"][1]["answer"], "수정됨")
 
 
 class SpecWorkflowTests(unittest.TestCase):

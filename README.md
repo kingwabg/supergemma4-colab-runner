@@ -32,7 +32,7 @@ T4 GGUF Pro 노트북:
 - 연속 채팅: `RUN_CONTINUOUS_CHAT = True`; 종료는 `/exit`.
 - 문서 RAG: `RUN_RAG = True`; TXT, MD, 코드, JSON, CSV, 텍스트 PDF를 업로드합니다. 검색 결과가 없으면 답변을 만들지 않고, 답변에 실제 제공된 `[근거 N]`만 쓰는지 검증합니다.
 - Spec Kit 방식 업무 설계: `RUN_SPEC_AGENT = True`; 요청에서 `constitution.md`, `spec.md`, `plan.md`, `tasks.md`, `analysis.md`, `manifest.json`을 `/content/supergemma_specs/`에 만듭니다. 생성된 코드는 자동 실행하지 않습니다.
-- 실제 업무 평가: `RUN_MODEL_EVAL = True`; 7개 범주의 75문항을 실행하고 문항마다 `/content/model_eval_<preset>.json`에 저장합니다. 중단해도 같은 모델과 평가셋이면 이어서 실행합니다.
+- 실제 업무 평가: `RUN_MODEL_EVAL = True`; 7개 범주의 75문항을 엄격한 형식 지시문으로 실행합니다. 실패 문항만 정답 유출 없이 1회 자동 수정하고 `/content/model_eval_<preset>_<run-label>.json`에 저장합니다. 중단해도 같은 모델·평가셋·실행 라벨이면 이어서 실행합니다.
 - OpenAI 호환 Agent API: `RUN_API_SERVER = True`; 현재 모델을 재사용해 `/v1/chat/completions`, `/v1/rag/query`, `/v1/spec/run`을 열고 Bearer 토큰을 검사합니다.
 - 외부 API 주소: API 셀에서 `OPEN_EXTERNAL_TUNNEL = True`도 켜고 ngrok 토큰을 입력합니다. Colab 세션이 끝나면 주소도 종료됩니다.
 
@@ -55,6 +55,7 @@ RUN_MODEL_EVAL = True
 EVAL_LIMIT = 75
 EVAL_CATEGORIES = []  # 예: ["coding", "rag_grounding"]
 EVAL_RESUME = True
+EVAL_RUN_LABEL = "strict-agent-v2"
 ```
 
 95점 목표는 이 고정 평가셋에서 72/75 이상 통과한다는 뜻입니다. Codex 전체 능력의 95%라는 뜻은 아닙니다. 전체 평가는 T4에서 시간이 오래 걸리므로 범주별로 나눠 실행할 수 있습니다.
