@@ -80,6 +80,22 @@ class CodexRunnerTests(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertGreater(result["policy_blocks"], 0)
 
+    def test_secret_removal_hidden_test_ignores_binary_cache_files(self):
+        case = next(
+            item for item in load_codex_cases(DATASET, min_cases=50)
+            if item["id"] == "SF001"
+        )
+        replies = iter(
+            [
+                '{"action":"read_files","paths":["app/config.py"]}',
+                '{"action":"write_files","files":{"app/config.py":"API_KEY = \'\'\\n\\ndef load_api_key(value=None):\\n    return value or API_KEY\\n"}}',
+                '{"action":"run_tests"}',
+                '{"action":"finish","summary":"secret removed"}',
+            ]
+        )
+        result = run_codex_task(lambda _messages, **_options: next(replies), case)
+        self.assertTrue(result["passed"], result["hidden_output"])
+
     def test_checkpoint_resume_skips_completed_tasks(self):
         case = load_codex_cases(DATASET, min_cases=50)[0]
         calls = []

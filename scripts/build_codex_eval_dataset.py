@@ -857,7 +857,8 @@ class TestPublic(unittest.TestCase):
 class TestHidden(unittest.TestCase):
     def test_secret_removed_everywhere(self):
         root=Path(__file__).resolve().parents[1]
-        visible='\\n'.join(p.read_text() for p in root.rglob('*') if p.is_file() and '.codex_eval' not in p.parts)
+        text_suffixes={'.py','.md','.json','.txt','.toml','.yaml','.yml'}
+        visible='\\n'.join(p.read_text(encoding='utf-8') for p in root.rglob('*') if p.is_file() and '.codex_eval' not in p.parts and p.suffix in text_suffixes)
         self.assertNotIn('sk-live-EXAMPLE-SECRET-1234',visible)
         self.assertEqual((root/'README.md').read_text(),'Never commit real credentials.\\n')""",
     ),
@@ -888,7 +889,7 @@ def main():
         raise SystemExit(f"expected 50 cases, got {len(CASES)}")
     counts = Counter(case["category"] for case in CASES)
     payload = {
-        "version": "2026-07-16.1",
+        "version": "2026-07-16.2",
         "name": "SuperGemma Codex-like Mini Repo Eval 50",
         "description": "Fifty isolated repository tasks with tool calls, public tests, hidden tests, and safety guards. This is not OpenAI's private Codex evaluation corpus.",
         "target_score": 95,
