@@ -55,7 +55,7 @@ RUN_MODEL_EVAL = True
 EVAL_LIMIT = 75
 EVAL_CATEGORIES = []  # 예: ["coding", "rag_grounding"]
 EVAL_RESUME = True
-EVAL_RUN_LABEL = "tool-agent-v3"
+EVAL_RUN_LABEL = "tool-agent-v4"
 ```
 
 95점 목표는 이 고정 평가셋에서 72/75 이상 통과한다는 뜻입니다. Codex 전체 능력의 95%라는 뜻은 아닙니다. 전체 평가는 T4에서 시간이 오래 걸리므로 범주별로 나눠 실행할 수 있습니다.

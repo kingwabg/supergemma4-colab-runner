@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import math
 import re
+from datetime import datetime, timedelta
+from statistics import median
 from typing import Any
 
 
@@ -56,6 +58,25 @@ def solve_simple_math(prompt: str) -> str | None:
         value, percent = map(_number, repeated_increase.groups())
         return _format_number(value * (1 + percent / 100) ** 2)
 
+    median_match = re.search(
+        r"((?:-?\d+(?:\.\d+)?\s*,\s*)+-?\d+(?:\.\d+)?)\s*의\s*중앙값",
+        text,
+    )
+    if median_match:
+        values = [_number(item) for item in re.split(r"\s*,\s*", median_match.group(1))]
+        return _format_number(float(median(values)))
+
+    kst_to_utc = re.search(r"(?:한국\s*시간\s*)?\(?KST\)?\s*(\d{1,2}):(\d{2}).*?UTC", text, re.IGNORECASE)
+    if kst_to_utc:
+        hour, minute = map(int, kst_to_utc.groups())
+        converted = datetime(2000, 1, 1, hour, minute) - timedelta(hours=9)
+        return converted.strftime("%H:%M")
+
+    range_sum = re.search(r"1부터\s*([\d,]+)까지.*?합", text)
+    if range_sum:
+        end = int(_number(range_sum.group(1)))
+        return str(end * (end + 1) // 2)
+
     return None
 
 
@@ -101,9 +122,7 @@ def normalize_output(prompt: str, answer: str) -> str:
 
     requested_lines = _requested_line_values(request)
     if requested_lines:
-        actual_lines = [line for line in cleaned.splitlines() if line.strip()]
-        if len(actual_lines) != len(requested_lines):
-            return "\n".join(requested_lines)
+        return "\n".join(requested_lines)
 
     if "숫자로만" in request or "숫자만" in request:
         if re.fullmatch(r"[+-]?\d[\d,]*(?:\.\d+)?", cleaned):

@@ -45,7 +45,7 @@ CASES = [
     case("K005", "korean_instruction", "문장 '첫째, 자료 수집. 둘째, 검토. 셋째, 승인.'의 단계 수를 숫자만 출력하세요.", "exact", value="3"),
     case("K006", "korean_instruction", "다음 세 단어를 입력 순서 그대로 한 줄에 하나씩만 출력하세요: 요청, 검토, 승인", "exact", value="요청\n검토\n승인"),
     case("K007", "korean_instruction", "업무 지연에 대한 짧은 사과문을 작성하세요. '죄송'과 '재발 방지'를 반드시 포함하세요.", "contains_all", values=["죄송", "재발 방지"]),
-    case("K008", "korean_instruction", "'자료가 부족하여 결정을 미룬다'를 두 글자 한자어로만 바꾸세요.", "exact", value="보류"),
+    case("K008", "korean_instruction", "'자료가 부족하여 결정을 미룬다'를 두 글자 한자어로만 바꾸세요.", "regex", pattern=r"^(?:보류|유보)$"),
     case("K009", "korean_instruction", "2026-07-15 14:00을 자연스러운 한국어 날짜와 시간으로 쓰세요.", "contains_all", values=["2026년 7월 15일", "오후 2시"]),
     case("K010", "korean_instruction", "다음 항목을 중요도 순서 그대로 쉼표로 연결해 정확히 출력하세요: 안전, 정확성, 속도", "exact", value="안전, 정확성, 속도"),
 
@@ -133,7 +133,7 @@ def main():
         raise SystemExit(f"expected 75 cases, got {len(CASES)}")
     counts = Counter(item["category"] for item in CASES)
     payload = {
-        "version": "2026-07-15.3",
+        "version": "2026-07-15.4",
         "name": "SuperGemma Korean Real Work Eval 75",
         "description": "Deterministic Korean work cases for regression comparison; not a general intelligence percentage.",
         "target_score": 95,

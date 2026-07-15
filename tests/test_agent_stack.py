@@ -112,6 +112,8 @@ class OutputContractTests(unittest.TestCase):
             "86",
         )
         self.assertEqual(solve_simple_math("55,000원에서 20% 할인한 가격을 숫자로만 출력하세요."), "44000")
+        self.assertEqual(solve_simple_math("2, 3, 9, 10, 100의 중앙값을 숫자로만 출력하세요."), "9")
+        self.assertEqual(solve_simple_math("한국 시간(KST) 15:00은 UTC 몇 시인지 출력하세요."), "06:00")
 
     def test_output_contract_removes_wrappers_only_when_requested(self):
         self.assertEqual(
@@ -124,6 +126,13 @@ class OutputContractTests(unittest.TestCase):
         self.assertEqual(normalize_output("가격을 숫자로만 출력하세요.", "44,000"), "44000")
         self.assertEqual(
             normalize_output("정확히 네 줄로 출력하세요: SPEC, PLAN, TASKS, VERIFY", "SPEC, PLAN, TASKS, VERIFY"),
+            "SPEC\nPLAN\nTASKS\nVERIFY",
+        )
+        self.assertEqual(
+            normalize_output(
+                "정확히 네 줄로 출력하세요: SPEC, PLAN, TASKS, VERIFY",
+                "SPEC: 설명\nPLAN: 설명\nTASKS: 설명\nVERIFY: 설명",
+            ),
             "SPEC\nPLAN\nTASKS\nVERIFY",
         )
         self.assertEqual(

@@ -495,7 +495,7 @@ RUN_MODEL_EVAL = False
 EVAL_LIMIT = 75
 EVAL_CATEGORIES = []  # 비우면 전체, 예: ["coding", "rag_grounding"]
 EVAL_RESUME = True
-EVAL_RUN_LABEL = "tool-agent-v3"
+EVAL_RUN_LABEL = "tool-agent-v4"
 EVAL_DATA_URL = "https://raw.githubusercontent.com/kingwabg/supergemma4-colab-runner/main/evals/real_work_eval_75.json"
 
 EVAL_SYSTEM_PROMPT = '''당신은 지시를 정확히 수행하는 한국어 업무 AI입니다.

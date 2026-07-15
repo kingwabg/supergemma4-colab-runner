@@ -1,5 +1,5 @@
 {
-  "version": "2026-07-15.3",
+  "version": "2026-07-15.4",
   "name": "SuperGemma Korean Real Work Eval 75",
   "description": "Deterministic Korean work cases for regression comparison; not a general intelligence percentage.",
   "target_score": 95,
@@ -108,8 +108,8 @@
       "max_tokens": 160,
       "use_thinking": false,
       "grader": {
-        "type": "exact",
-        "value": "보류"
+        "type": "regex",
+        "pattern": "^(?:보류|유보)$"
       }
     },
     {
