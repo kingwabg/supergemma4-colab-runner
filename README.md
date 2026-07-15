@@ -60,6 +60,8 @@ EVAL_RUN_LABEL = "tool-agent-v4"
 
 95점 목표는 이 고정 평가셋에서 72/75 이상 통과한다는 뜻입니다. Codex 전체 능력의 95%라는 뜻은 아닙니다. 전체 평가는 T4에서 시간이 오래 걸리므로 범주별로 나눠 실행할 수 있습니다.
 
+Colab T4에서 측정한 단계별 결과와 남은 약점은 [docs/evaluation-results.md](docs/evaluation-results.md)에 기록했습니다.
+
 API가 실행된 뒤 같은 Colab 런타임에서 확인하는 예:
 
 ```python
